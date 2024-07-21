@@ -12,24 +12,24 @@ fi
 CLICKHOUSE_UID="${CLICKHOUSE_UID:-"$(id -u clickhouse)"}"
 CLICKHOUSE_GID="${CLICKHOUSE_GID:-"$(id -g clickhouse)"}"
 
-# support --user
-if [ "$(id -u)" = "0" ]; then
-    USER=$CLICKHOUSE_UID
-    GROUP=$CLICKHOUSE_GID
-    if command -v gosu &> /dev/null; then
-        gosu="gosu $USER:$GROUP"
-    elif command -v su-exec &> /dev/null; then
-        gosu="su-exec $USER:$GROUP"
-    else
-        echo "No gosu/su-exec detected!"
-        exit 1
-    fi
-else
-    USER="$(id -u)"
-    GROUP="$(id -g)"
-    gosu=""
-    DO_CHOWN=0
-fi
+# # support --user
+# if [ "$(id -u)" = "0" ]; then
+#     USER=$CLICKHOUSE_UID
+#     GROUP=$CLICKHOUSE_GID
+#     # if command -v sudo &> /dev/null; then
+#     gosu="sudo -u $USER:$GROUP"
+#     # elif command -v su-exec &> /dev/null; then
+#     #     gosu="su-exec $USER:$GROUP"
+#     # else
+#     #     echo "No gosu/su-exec detected!"
+#     #     exit 1
+#     # fi
+# else
+#     USER="$(id -u)"
+#     GROUP="$(id -g)"
+#     gosu=""
+#     DO_CHOWN=0
+# fi
 
 KEEPER_CONFIG="${KEEPER_CONFIG:-/etc/clickhouse-keeper/keeper_config.xml}"
 
@@ -74,12 +74,6 @@ do
     fi
 done
 
-sed -i 's|<log>/var/log/clickhouse-keeper/clickhouse-keeper.log</log>|<log remove="remove"/>|' "$KEEPER_CONFIG"
-
-sed -i 's|<errorlog>/var/log/clickhouse-keeper/clickhouse-keeper.err.log</errorlog>|<console>1</console>|' "$KEEPER_CONFIG"
-
-
-
 # if no args passed to `docker run` or first argument start with `--`, then the user is passing clickhouse-server arguments
 if [[ $# -lt 1 ]] || [[ "$1" == "--"* ]]; then
     # Watchdog is launched by default, but does not send SIGINT to the main process,
@@ -90,11 +84,11 @@ if [[ $# -lt 1 ]] || [[ "$1" == "--"* ]]; then
 
     # There is a config file. It is already tested with gosu (if it is readably by keeper user)
     if [ -f "$KEEPER_CONFIG" ]; then
-        exec $gosu /usr/bin/clickhouse-keeper --config-file="$KEEPER_CONFIG" "$@"
+        exec $gosu /usr/bin/clickhouse-keeper --config-file="$KEEPER_CONFIG" --log-file="$LOG_PATH" --errorlog-file="$ERROR_LOG_PATH" "$@"
     fi
 
     # There is no config file. Will use embedded one
-    exec $gosu /usr/bin/clickhouse-keeper --log-file="$LOG_PATH"  "$@"
+    exec $gosu /usr/bin/clickhouse-keeper --log-file="$LOG_PATH" --errorlog-file="$ERROR_LOG_PATH" "$@"
 fi
 
 # Otherwise, we assume the user want to run his own process, for example a `bash` shell to explore this image
